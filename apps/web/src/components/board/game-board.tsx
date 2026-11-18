@@ -10,7 +10,7 @@ import {
 } from '@jackaroo/game-board';
 import { getTeamPalette } from '@jackaroo/game-config';
 import type { GameSnapshot } from '@jackaroo/game-types';
-import { Crown, Layers2, WifiOff } from 'lucide-react';
+import { Crown, WifiOff } from 'lucide-react';
 import { BoardBase } from './board-base';
 import { buildMarbleLayout, type RenderMarble } from './marble-layout';
 import { cn, initials } from '@/lib/utils';
@@ -90,6 +90,17 @@ export function GameBoard({
     () => buildPreview(preview, board, marbleById),
     [board, marbleById, preview],
   );
+
+  // One entry halo per base dock, even when several base marbles are eligible.
+  const enterBaseMarbles = React.useMemo(() => {
+    const byOwner = new Map<string, RenderMarble>();
+    for (const marbleId of enterSet) {
+      const marble = marbleById.get(marbleId);
+      if (!marble || marble.status !== 'base') continue;
+      if (!byOwner.has(marble.ownerId)) byOwner.set(marble.ownerId, marble);
+    }
+    return [...byOwner.values()];
+  }, [enterSet, marbleById]);
 
   const currentPlayer = snapshot.currentPlayerId
     ? snapshot.players.find((player) => player.id === snapshot.currentPlayerId)
@@ -179,9 +190,7 @@ export function GameBoard({
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
           />
         ) : null}
-        {Array.from(enterSet).map((marbleId) => {
-          const marble = marbleById.get(marbleId);
-          if (!marble || marble.status !== 'base') return null;
+        {enterBaseMarbles.map((marble) => {
           const station = board.stations[marble.seat];
           if (!station) return null;
           return (
@@ -414,7 +423,6 @@ export function GameBoard({
 }
 
 function SeatChips({ snapshot, board }: { snapshot: GameSnapshot; board: BoardModel }) {
-  const compactChips = snapshot.playerCount >= 8;
   return (
     <div className="pointer-events-none absolute inset-0 z-20 hidden xl:block">
       {snapshot.players.map((player) => {
@@ -434,62 +442,33 @@ function SeatChips({ snapshot, board }: { snapshot: GameSnapshot; board: BoardMo
             }}
           >
             <div
-              title={`${player.name} · ${player.handCount} cards${player.finished ? ' · home' : ''}`}
-              className={cn(
-                'flex items-center gap-2 rounded-full border bg-[#04120e]/88 py-1 pl-1 pr-2.5 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.9)] backdrop-blur-md transition-all',
-                current ? 'scale-105' : 'opacity-85',
-                player.finished && 'opacity-70',
-                compactChips && 'gap-0 px-1 py-1',
-              )}
+              title={`${player.name}${isYou ? ' (you)' : ''} · ${player.handCount} cards${
+                player.finished ? ' · all marbles home' : ''
+              }${connected ? '' : ' · reconnecting'}`}
+              className="relative flex size-6 items-center justify-center rounded-full text-[9px] font-bold"
               style={{
-                borderColor: current ? team.primary : 'rgba(255,255,255,0.1)',
-                boxShadow: current ? `0 0 24px ${team.glow}` : undefined,
+                backgroundColor: team.deep,
+                color: team.pale,
+                border: `1.5px solid ${current ? team.primary : `${team.primary}66`}`,
+                boxShadow: current ? `0 0 14px ${team.glow}` : undefined,
+                opacity: player.finished ? 0.75 : connected ? 1 : 0.6,
               }}
             >
-              <span
-                className="relative flex size-8 items-center justify-center rounded-full text-[10px] font-bold tracking-wide"
-                style={{
-                  backgroundColor: `${team.deep}`,
-                  border: `1px solid ${team.primary}88`,
-                  color: team.pale,
-                }}
-              >
-                {initials(player.name)}
-                {connected ? (
-                  <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-[#04120e] bg-emerald-400" />
-                ) : (
-                  <span className="absolute -bottom-1 -right-1 grid size-4 place-items-center rounded-full border border-[#04120e] bg-[#2a2a28]">
-                    <WifiOff className="size-2.5 text-cream/60" />
-                  </span>
-                )}
-              </span>
-              {compactChips ? (
-                <span className="flex items-center gap-1 pr-0.5">
-                  <span className="text-[9px] font-semibold text-cream/60">{player.handCount}</span>
-                  {player.finished ? <Crown className="size-2.5 text-gold" /> : null}
+              {initials(player.name)}
+              {player.finished ? (
+                <span className="absolute -top-1.5 -right-1.5 grid size-3.5 place-items-center rounded-full bg-[#04120e]">
+                  <Crown className="size-2 text-gold" />
                 </span>
-              ) : (
-                <span className="flex max-w-28 flex-col gap-0.5">
-                  <span className="truncate text-[11px] font-semibold leading-none text-cream/90">
-                    {player.name}
-                    {isYou ? <span className="ml-1 text-gold">· you</span> : null}
-                  </span>
-                  <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.12em] text-cream/40">
-                    <Layers2 className="size-2.5" />
-                    {player.handCount}
-                    {player.finished ? (
-                      <span className="flex items-center gap-0.5 text-gold">
-                        <Crown className="size-2.5" />
-                        home
-                      </span>
-                    ) : null}
-                  </span>
+              ) : null}
+              {!connected ? (
+                <span className="absolute -bottom-1 -right-1 grid size-3.5 place-items-center rounded-full border border-[#04120e] bg-[#2a2a28]">
+                  <WifiOff className="size-2 text-cream/60" />
                 </span>
-              )}
+              ) : null}
               {current ? (
                 <span
-                  className="ml-0.5 size-1.5 animate-pulse rounded-full"
-                  style={{ backgroundColor: team.primary, boxShadow: `0 0 8px ${team.primary}` }}
+                  className="absolute -inset-1 animate-pulse rounded-full border"
+                  style={{ borderColor: team.primary }}
                 />
               ) : null}
             </div>
