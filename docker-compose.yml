@@ -1,0 +1,69 @@
+name: jackaroo
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jackaroo
+      POSTGRES_PASSWORD: jackaroo
+      POSTGRES_DB: jackaroo
+    ports:
+      - '5432:5432'
+    volumes:
+      - jackaroo-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jackaroo']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: '4000'
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      DATABASE_URL: postgresql://jackaroo:jackaroo@db:5432/jackaroo?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string-at-least-32-chars}
+      JWT_EXPIRES_DAYS: '30'
+      COOKIE_SECURE: 'false'
+    ports:
+      - '4000:4000'
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_TELEMETRY_DISABLED: '1'
+    ports:
+      - '3000:3000'
+
+volumes:
+  jackaroo-pg:

@@ -1,0 +1,24 @@
+# Jackaroo Online — API image
+# Build from the repository root:
+#   docker build -f Dockerfile.api -t jackaroo-api .
+
+FROM node:22-alpine
+
+RUN apk add --no-cache libc6-compat openssl
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages ./packages
+COPY apps/api ./apps/api
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @jackaroo/api prisma:generate
+RUN pnpm --filter @jackaroo/api build
+
+ENV NODE_ENV=production
+EXPOSE 4000
+
+# Applies pending Prisma migrations, then boots the NestJS server.
+CMD ["sh", "-c", "pnpm --filter @jackaroo/api prisma:deploy && node apps/api/dist/main.js"]

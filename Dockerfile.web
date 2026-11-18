@@ -1,0 +1,25 @@
+# Jackaroo Online — Web image
+# Build from the repository root:
+#   docker build --build-arg NEXT_PUBLIC_API_URL=http://localhost:4000 -f Dockerfile.web -t jackaroo-web .
+
+FROM node:22-alpine
+
+RUN corepack enable
+
+WORKDIR /app
+
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages ./packages
+COPY apps/web ./apps/web
+
+RUN pnpm install --frozen-lockfile
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter @jackaroo/web build
+
+EXPOSE 3000
+
+CMD ["pnpm", "--filter", "@jackaroo/web", "start"]

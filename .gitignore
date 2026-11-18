@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# local services & env
+.local/
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# tooling
+.DS_Store
+playwright-report/
+e2e-results/
+test-results/
+blob-report/
+*.log
