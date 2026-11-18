@@ -214,6 +214,17 @@ npx expo start             # Expo Go: solo + pass & play work immediately
 >
 > Solo and pass & play work fully in Expo Go.
 
+**Expo Go troubleshooting**
+
+| Problem | Fix |
+| --- | --- |
+| App crashes immediately on open | Fixed — `async-storage` is now pinned to the SDK-58 version (v3 needs a newer native interface than Expo Go ships). Pull the latest commit and restart `expo start`. |
+| “This project is incompatible with this version of Expo Go” | Update the **Expo Go app** from the App Store / Play Store, then reload. |
+| Phone can’t reach the dev server (stuck on “Downloading”) | Mac and phone must be on the same Wi-Fi. If it still fails, run `npx expo start --tunnel` and scan the new QR code. |
+| “Port 8081 is unavailable” | Another Expo/Metro session is running: `lsof -ti :8081 \| xargs kill -9` (macOS/Linux) or start with `--port 8091`. |
+| LAN buttons show a “development build” message in Expo Go | Expected — the TCP server needs a dev build (`npx expo run:android`). Solo and pass & play don’t need it. |
+| Node warning “v22.12.0 is outdated (required ≥22.13.0)” | Warning only — the server still boots. To silence it, update Node (`nvm install 22 && nvm use 22`). |
+
 **Mobile architecture**
 
 - The host phone runs the same pure engine (`@jackaroo/game-engine`) and a tiny TCP
