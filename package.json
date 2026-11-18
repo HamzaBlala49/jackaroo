@@ -19,7 +19,9 @@
     "db:generate": "pnpm --filter @jackaroo/api prisma:generate",
     "db:migrate": "pnpm --filter @jackaroo/api prisma:migrate",
     "db:deploy": "pnpm --filter @jackaroo/api prisma:deploy",
-    "db:studio": "pnpm --filter @jackaroo/api prisma:studio"
+    "db:studio": "pnpm --filter @jackaroo/api prisma:studio",
+    "dev:mobile": "pnpm --filter @jackaroo/mobile start",
+    "build:packages": "turbo run build --filter=@jackaroo/game-types --filter=@jackaroo/shared-utils --filter=@jackaroo/game-config --filter=@jackaroo/game-board --filter=@jackaroo/game-engine"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

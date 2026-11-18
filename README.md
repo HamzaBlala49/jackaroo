@@ -1,12 +1,24 @@
 # Jackaroo Online
 
-A production-ready, real-time multiplayer Jackaroo board game for **4, 6 or 8 friends**.
-Private rooms, server-authoritative rules, private hands, a hand-drawn SVG table,
-and full match persistence.
+A production-ready, real-time multiplayer Jackaroo board game for **4, 6 or 8 friends** —
+on the web and on mobile.
 
 ```text
 Create a room → share a 6-character code → ready up → race your marbles home.
 ```
+
+---
+
+## Two apps, one game engine
+
+| App | Path | What it is |
+| --- | --- | --- |
+| **Web** | `apps/web` | Next.js 16 real-time client for desktop, tablet and phone browsers |
+| **Mobile** | `apps/mobile` | Expo / React Native app in Arabic, wooden theme, solo bots, pass & play, and LAN multiplayer with **no external server** |
+
+Both apps share the exact same pure TypeScript game engine, board geometry and rule
+configuration from `packages/*`, so the rules are identical everywhere and are covered
+by the same 106 automated tests.
 
 ---
 
@@ -44,12 +56,13 @@ Create a room → share a 6-character code → ready up → race your marbles ho
 
 ```text
 apps/
-  web/                 Next.js client
+  web/                 Next.js web client (online rooms)
+  mobile/              Expo / React Native app (Arabic, LAN, bots, pass & play)
   api/                 NestJS REST + Socket.IO server
 packages/
   game-types/          Shared types, socket contracts, zod schemas, error codes
   game-config/         Default rulebook, card map, team palettes, room defaults
-  game-board/          Board topology + normalized SVG geometry (no React)
+  game-board/          Board topology + normalized SVG geometry (no React) + marble layout
   game-engine/         Pure rules engine (no React, no Next, no Nest)
   shared-utils/        Seeded RNG, room codes, formatting helpers
   eslint-config/       Shared flat-ESLint baseline
@@ -148,8 +161,9 @@ and the web app.
 
 | Command | What it does |
 | --- | --- |
-| `pnpm dev` | Run API + Web in watch mode |
-| `pnpm build` | Build every workspace package and app |
+| `pnpm dev` | Run web API + Web in watch mode |
+| `pnpm dev:mobile` | Start the Expo dev server for the mobile app |
+| `pnpm build` | Build every workspace package and app (incl. mobile bundle export) |
 | `pnpm test` | Engine unit tests + full multiplayer API integration tests |
 | `pnpm typecheck` | Strict TypeScript across the monorepo |
 | `pnpm lint` | ESLint across the monorepo |
@@ -157,6 +171,59 @@ and the web app.
 | `pnpm db:migrate` | Create/apply dev migrations |
 | `pnpm db:deploy` | Apply migrations in production |
 | `pnpm db:studio` | Open Prisma Studio |
+
+---
+
+## Mobile app (Expo / React Native)
+
+<div dir="rtl">
+
+### جيكارو — تطبيق الجوال
+
+لعبة جيكارو كاملة على الجوال، بالعربية وبتصميم خشبي على خلفية حمراء، **بدون أي سيرفر خارجي**.
+
+**أنواع اللعب:**
+- **لعب فردي** — أنت ضد ثلاثة روبوتات ذكية.
+- **على نفس الجهاز** — ٢ إلى ٤ لاعبين بالتبادل على جهاز واحد مع شاشة "مرّر الجهاز" لإخفاء الورق.
+- **شبكة محلية (LAN)** — جهازك يستضيف المباراة، وأصدقاؤك ينضمون عبر Wi-Fi بعنوان IP. مقاعد الشاغرة تُكمل بالروبوتات، وإذا انقطع لاعب يحل روبوت مكانه تلقائيًا.
+
+**المميزات:**
+- لوح خشبي بحركة رخام نابضة + مؤثرات صوتية خشبية مولّدة (~105 كيلوبايت فقط).
+- أربعة أشكال للوح: **دائري، مربع، سداسي، بيضاوي** — نفس القوانين تمامًا.
+- بطاقات جميلة بلمسة خشبية، وشرح عربي واضح للقوانين داخل التطبيق.
+- اهتزاز (Haptics) عند الحركة والأسر والفوز.
+- حجم التطبيق صغير: بدون خطوط مضمّنة وبدون صور ثقيلة.
+
+</div>
+
+**Run it**
+
+```bash
+pnpm build:packages        # build the shared game packages once
+cd apps/mobile
+npx expo start             # Expo Go: solo + pass & play work immediately
+```
+
+> **LAN multiplayer** uses `react-native-tcp-socket` (a native module), so it needs an
+> Expo **development build** instead of Expo Go:
+>
+> ```bash
+> cd apps/mobile
+> npx expo run:android      # or: npx expo run:ios
+> ```
+>
+> Solo and pass & play work fully in Expo Go.
+
+**Mobile architecture**
+
+- The host phone runs the same pure engine (`@jackaroo/game-engine`) and a tiny TCP
+  server (`react-native-tcp-socket`). Clients send intents; the host validates,
+  mutates the authoritative state and broadcasts **personalised snapshots** —
+  each phone only ever sees its own hand.
+- Sounds are small generated WAVs (~105 KB total) played with `expo-audio`;
+  haptics via `expo-haptics`; settings persisted with AsyncStorage.
+- The board is rendered with `react-native-svg` using the shared
+  `@jackaroo/game-board` geometry (circle / square / hexagon / oval outlines).
 
 ---
 

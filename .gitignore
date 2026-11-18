@@ -12,6 +12,7 @@ coverage/
 
 # local services & env
 .local/
+apps/mobile/.local/
 .env
 .env.local
 .env.*.local
@@ -24,3 +25,8 @@ e2e-results/
 test-results/
 blob-report/
 *.log
+
+# Expo generated native projects (use `npx expo prebuild` / `expo run:*`)
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.expo/

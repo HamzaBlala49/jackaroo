@@ -1,0 +1,52 @@
+{
+  "name": "@jackaroo/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "clean": "rm -rf node_modules .expo",
+    "build": "expo export --platform android --output-dir dist"
+  },
+  "dependencies": {
+    "@jackaroo/game-board": "workspace:*",
+    "@jackaroo/game-config": "workspace:*",
+    "@jackaroo/game-engine": "workspace:*",
+    "@jackaroo/game-types": "workspace:*",
+    "@jackaroo/shared-utils": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "58.0.26",
+    "expo-asset": "~58.0.21",
+    "expo-audio": "58.0.12",
+    "expo-haptics": "58.0.8",
+    "expo-network": "58.0.5",
+    "expo-status-bar": "58.0.5",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "5.11.1",
+    "react-native-svg": "15.16.0",
+    "react-native-tcp-socket": "6.4.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@jackaroo/eslint-config": "workspace:*",
+    "@types/react": "19.3.0",
+    "babel-preset-expo": "58.0.26",
+    "eslint": "9.39.5",
+    "typescript": "5.9.3"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-tcp-socket"
+        ]
+      }
+    }
+  }
+}

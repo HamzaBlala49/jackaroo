@@ -12,7 +12,7 @@ import { getTeamPalette } from '@jackaroo/game-config';
 import type { GameSnapshot } from '@jackaroo/game-types';
 import { Crown, WifiOff } from 'lucide-react';
 import { BoardBase } from './board-base';
-import { buildMarbleLayout, type RenderMarble } from './marble-layout';
+import { buildMarbleLayout, type RenderMarble } from '@jackaroo/game-board';
 import { cn, initials } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/settings-store';
 

@@ -3,9 +3,19 @@ import {
   BOARD_RING_LENGTH,
   DEFAULT_RULES,
   PLAYERS_PER_TEAM,
-  TOTAL_ROUTE_LENGTH,
 } from '@jackaroo/game-config';
 import type { PlayerCount } from '@jackaroo/game-types';
+import {
+  BOARD_SHAPES,
+  buildShapeFrame,
+  pointPolarAngle,
+  tangentAngle,
+  type BoardShape,
+  type ShapePoint,
+} from './shapes';
+
+export * from './shapes';
+export { buildMarbleLayout, type RenderMarble } from './marble-layout';
 
 export const VIEWBOX_SIZE = 1000;
 export const BOARD_CENTER = 500;
@@ -21,6 +31,20 @@ export const BASE_RADIUS = 438;
 export const BASE_SOCKET_RADIAL = 14;
 export const BASE_SOCKET_TANGENTIAL = 18;
 
+/** Distance from the gate cell to each home slot, along the inward normal. */
+const HOME_SLOT_OFFSETS = [46, 90, 134, 178] as const;
+/** How far the base dock centre sits outside the start cell. */
+const BASE_DOCK_OFFSET = 96;
+/** How far the player badge sits outside the start cell. */
+const SEAT_ANCHOR_OFFSET = 38;
+/** Half width of the decorative home-lane wedge. */
+const HOME_LANE_HALF_WIDTH = 15.5;
+/** The lane wedge starts slightly inside the ring and stops near the medallion. */
+const HOME_LANE_INNER_START = 22;
+const HOME_LANE_OUTER_END = 218;
+
+export type BoardShapeName = BoardShape;
+
 export interface Point {
   x: number;
   y: number;
@@ -28,7 +52,10 @@ export interface Point {
 
 export interface BoardRingCell extends Point {
   index: number;
+  /** Polar angle of the cell (degrees, 0 = right, 90 = bottom). */
   angleDeg: number;
+  /** Rotation that orients the cell along the outline (degrees). */
+  rotationDeg: number;
   isStart: boolean;
   startSeat: number | null;
   isNeutralSafe: boolean;
@@ -37,7 +64,8 @@ export interface BoardRingCell extends Point {
 
 export interface BoardHomeSlot extends Point {
   slot: number;
-  radius: number;
+  /** Rotation that orients the slot along the home lane (degrees). */
+  rotationDeg: number;
 }
 
 export interface BoardStation {
@@ -45,13 +73,20 @@ export interface BoardStation {
   teamId: number;
   startIndex: number;
   homeGateIndex: number;
+  /** Polar angle of the start cell (kept for the legacy web renderer). */
   startAngleDeg: number;
+  /** Polar angle of the home gate (kept for the legacy web renderer). */
   homeAngleDeg: number;
+  /** Rotation of the home slots (tangent angle at the gate). */
+  homeRotationDeg: number;
+  /** Rotation of the base dock (tangent angle at the start cell). */
+  baseRotationDeg: number;
   start: Point;
   homeSlots: BoardHomeSlot[];
   homeLanePath: string;
   baseCenter: Point;
   baseSockets: Point[];
+  /** Polar angle of the base centre (kept for the legacy web renderer). */
   baseAngleDeg: number;
   seatAnchor: Point;
   routeRingIndices: number[];
@@ -64,8 +99,9 @@ export interface BoardSeatAnchor extends Point {
 }
 
 export interface BoardModel {
-  playerCount: PlayerCount;
+  playerCount: number;
   teamCount: number;
+  shape: BoardShape;
   ringLength: number;
   homeLaneLength: number;
   routeLength: number;
@@ -84,17 +120,24 @@ export interface BoardModel {
   ring: BoardRingCell[];
   stations: BoardStation[];
   seatAnchors: BoardSeatAnchor[];
+  /** Closed SVG path tracing the board outline (decorative). */
+  outlinePath: string;
 }
 
 export interface BoardModelOptions {
   ringLength?: number;
   homeLaneLength?: number;
   safePositions?: number[];
+  shape?: BoardShape;
 }
 
 const modelCache = new Map<string, BoardModel>();
 
 const toRad = (degrees: number): number => (degrees * Math.PI) / 180;
+
+function round(value: number): number {
+  return Math.round(value * 10_000) / 10_000;
+}
 
 export function polarPoint(
   radius: number,
@@ -103,8 +146,8 @@ export function polarPoint(
 ): Point {
   const angle = toRad(angleDeg);
   return {
-    x: roundCoordinate(center.x + radius * Math.cos(angle)),
-    y: roundCoordinate(center.y + radius * Math.sin(angle)),
+    x: round(center.x + radius * Math.cos(angle)),
+    y: round(center.y + radius * Math.sin(angle)),
   };
 }
 
@@ -129,23 +172,11 @@ export function getTeamIdForSeat(seat: number, teamCount: number): number {
   return seat % teamCount;
 }
 
-function makeHomeLanePath(
-  angleDeg: number,
-  innerRadius: number,
-  outerRadius: number,
-  halfWidthDeg: number,
-): string {
-  const outerLeft = polarPoint(outerRadius, angleDeg - halfWidthDeg);
-  const outerRight = polarPoint(outerRadius, angleDeg + halfWidthDeg);
-  const innerRight = polarPoint(innerRadius, angleDeg + halfWidthDeg);
-  const innerLeft = polarPoint(innerRadius, angleDeg - halfWidthDeg);
-  return [
-    `M ${outerLeft.x.toFixed(2)} ${outerLeft.y.toFixed(2)}`,
-    `L ${outerRight.x.toFixed(2)} ${outerRight.y.toFixed(2)}`,
-    `L ${innerRight.x.toFixed(2)} ${innerRight.y.toFixed(2)}`,
-    `L ${innerLeft.x.toFixed(2)} ${innerLeft.y.toFixed(2)}`,
-    'Z',
-  ].join(' ');
+function addScaled(point: ShapePoint, direction: ShapePoint, distance: number): Point {
+  return {
+    x: round(point.x + direction.x * distance),
+    y: round(point.y + direction.y * distance),
+  };
 }
 
 export function createBoardModel(
@@ -155,7 +186,8 @@ export function createBoardModel(
   const ringLength = options.ringLength ?? DEFAULT_RULES.board.ringLength;
   const homeLaneLength = options.homeLaneLength ?? DEFAULT_RULES.board.homeLaneLength;
   const safePositions = options.safePositions ?? DEFAULT_RULES.safePositions;
-  const cacheKey = `${playerCount}:${ringLength}:${homeLaneLength}:${safePositions.join(',')}`;
+  const shape: BoardShape = options.shape ?? 'circle';
+  const cacheKey = `${playerCount}:${ringLength}:${homeLaneLength}:${safePositions.join(',')}:${shape}`;
   const cached = modelCache.get(cacheKey);
   if (cached) return cached;
 
@@ -164,6 +196,10 @@ export function createBoardModel(
   }
   if (ringLength % 2 !== 0 || homeLaneLength < 1) {
     throw new Error('Invalid board dimensions.');
+  }
+  if (shape !== 'circle' && ringLength !== BOARD_RING_LENGTH) {
+    // Non-circle outlines are tuned for the default 72-cell ring.
+    throw new Error('Alternate board shapes require the default ring length.');
   }
 
   const teamCount = playerCount / PLAYERS_PER_TEAM;
@@ -175,14 +211,17 @@ export function createBoardModel(
     safePositions.map((index) => ((index % ringLength) + ringLength) % ringLength),
   );
 
-  const ring: BoardRingCell[] = Array.from({ length: ringLength }, (_, index) => {
-    const angleDeg = ringAngle(index, ringLength);
+  const frame = buildShapeFrame(shape, ringLength);
+
+  const ring: BoardRingCell[] = frame.points.map((point, index) => {
     const isStart = startSeatByIndex.has(index);
     const isNeutralSafe = neutralSafe.has(index);
     return {
-      ...polarPoint(RING_RADIUS, angleDeg),
+      x: point.x,
+      y: point.y,
       index,
-      angleDeg,
+      angleDeg: round(pointPolarAngle(point)),
+      rotationDeg: round(tangentAngle(frame.tangents[index]!)),
       isStart,
       startSeat: startSeatByIndex.get(index) ?? null,
       isNeutralSafe,
@@ -192,35 +231,59 @@ export function createBoardModel(
 
   const stations: BoardStation[] = starts.map((startIndex, seat) => {
     const teamId = getTeamIdForSeat(seat, teamCount);
-    const startAngleDeg = ringAngle(startIndex, ringLength);
     const homeGateIndex = (startIndex - 1 + ringLength) % ringLength;
-    const homeAngleDeg = ringAngle(homeGateIndex, ringLength);
-    const start = polarPoint(RING_RADIUS, startAngleDeg);
-    const homeSlots = HOME_SLOT_RADII.map((radius, slot) => ({
-      ...polarPoint(radius, homeAngleDeg),
-      slot,
-      radius,
-    }));
-    const baseCenter = polarPoint(BASE_RADIUS, startAngleDeg);
-    const radial = {
-      x: Math.cos(toRad(startAngleDeg)),
-      y: Math.sin(toRad(startAngleDeg)),
-    };
-    const tangent = {
-      x: -Math.sin(toRad(startAngleDeg)),
-      y: Math.cos(toRad(startAngleDeg)),
-    };
+
+    const startPoint = frame.points[startIndex]!;
+    const startTangent = frame.tangents[startIndex]!;
+    const startInward = frame.inward[startIndex]!;
+    const startOutward: ShapePoint = { x: -startInward.x, y: -startInward.y };
+
+    const gatePoint = frame.points[homeGateIndex]!;
+    const gateTangent = frame.tangents[homeGateIndex]!;
+    const gateInward = frame.inward[homeGateIndex]!;
+
+    const startAngleDeg = round(pointPolarAngle(startPoint));
+    const homeAngleDeg = round(pointPolarAngle(gatePoint));
+    const homeRotationDeg = round(tangentAngle(gateTangent));
+    const baseRotationDeg = round(tangentAngle(startTangent));
+
+    const homeSlots: BoardHomeSlot[] = HOME_SLOT_OFFSETS.slice(0, homeLaneLength).map(
+      (offset, slot) => ({
+        ...addScaled(gatePoint, gateInward, offset),
+        slot,
+        rotationDeg: homeRotationDeg,
+      }),
+    );
+
+    // Decorative wedge from just inside the ring toward the medallion.
+    const wedgeOuterA = addScaled(gatePoint, gateInward, HOME_LANE_INNER_START - 0);
+    const wedgeInner = addScaled(gatePoint, gateInward, HOME_LANE_OUTER_END);
+    const outerLeft = addScaled(wedgeOuterA, gateTangent, HOME_LANE_HALF_WIDTH);
+    const outerRight = addScaled(wedgeOuterA, gateTangent, -HOME_LANE_HALF_WIDTH);
+    const innerRight = addScaled(wedgeInner, gateTangent, -HOME_LANE_HALF_WIDTH);
+    const innerLeft = addScaled(wedgeInner, gateTangent, HOME_LANE_HALF_WIDTH);
+    const homeLanePath = [
+      `M ${outerLeft.x} ${outerLeft.y}`,
+      `L ${outerRight.x} ${outerRight.y}`,
+      `L ${innerRight.x} ${innerRight.y}`,
+      `L ${innerLeft.x} ${innerLeft.y}`,
+      'Z',
+    ].join(' ');
+
+    const baseCenter = addScaled(startPoint, startOutward, BASE_DOCK_OFFSET);
     const baseSockets: Point[] = [];
     for (let row = 0; row < 2; row += 1) {
       for (let column = 0; column < 2; column += 1) {
-        const radialOffset = (row === 0 ? -1 : 1) * BASE_SOCKET_RADIAL;
-        const tangentOffset = (column === 0 ? -1 : 1) * BASE_SOCKET_TANGENTIAL;
+        const tangentialOffset = (column === 0 ? -1 : 1) * BASE_SOCKET_TANGENTIAL;
+        const radialOffset = (row === 0 ? 1 : -1) * BASE_SOCKET_RADIAL;
         baseSockets.push({
-          x: roundCoordinate(baseCenter.x + radial.x * radialOffset + tangent.x * tangentOffset),
-          y: roundCoordinate(baseCenter.y + radial.y * radialOffset + tangent.y * tangentOffset),
+          x: round(baseCenter.x + startTangent.x * tangentialOffset + startOutward.x * radialOffset),
+          y: round(baseCenter.y + startTangent.y * tangentialOffset + startOutward.y * radialOffset),
         });
       }
     }
+
+    const seatAnchor = addScaled(startPoint, startOutward, SEAT_ANCHOR_OFFSET);
 
     return {
       seat,
@@ -229,14 +292,15 @@ export function createBoardModel(
       homeGateIndex,
       startAngleDeg,
       homeAngleDeg,
-      start,
+      homeRotationDeg,
+      baseRotationDeg,
+      start: { x: startPoint.x, y: startPoint.y },
       homeSlots,
-      homeLanePath: makeHomeLanePath(homeAngleDeg, MEDALLION_RADIUS + 8, RING_RADIUS - 22, 2.6),
+      homeLanePath,
       baseCenter,
       baseSockets,
-      baseAngleDeg: startAngleDeg,
-      // Player identity chips sit in the felt gap between the base dock and the ring.
-      seatAnchor: polarPoint(380, startAngleDeg),
+      baseAngleDeg: round((baseRotationDeg - 90 + 360) % 360),
+      seatAnchor,
       routeRingIndices: Array.from(
         { length: ringLength },
         (_, offset) => (startIndex + offset) % ringLength,
@@ -247,6 +311,7 @@ export function createBoardModel(
   const model: BoardModel = {
     playerCount,
     teamCount,
+    shape,
     ringLength,
     homeLaneLength,
     routeLength: ringLength + homeLaneLength,
@@ -273,6 +338,7 @@ export function createBoardModel(
       teamId: station.teamId,
       angleDeg: station.startAngleDeg,
     })),
+    outlinePath: frame.outlinePath,
   };
 
   modelCache.set(cacheKey, model);
@@ -352,7 +418,7 @@ export function isPositionSafe(
 }
 
 export function routePointCount(model: BoardModel): number {
-  return TOTAL_ROUTE_LENGTH;
+  return model.routeLength;
 }
 
 export function homeLaneLength(): number {
@@ -380,3 +446,5 @@ export function describeRingArc(
   const largeArc = sweep > 180 ? 1 : 0;
   return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y}`;
 }
+
+export { BOARD_SHAPES };
