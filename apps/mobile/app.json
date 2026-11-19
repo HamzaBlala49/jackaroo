@@ -27,9 +27,11 @@
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "VIBRATE"
-      ],
-      "edgeToEdgeEnabled": true
+        "VIBRATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -47,7 +49,11 @@
       "expo-asset"
     ],
     "extra": {
-      "supportsRTL": true
-    }
+      "supportsRTL": true,
+      "eas": {
+        "projectId": "183395fb-22c9-49f4-b1b9-7f4d58a45c19"
+      }
+    },
+    "owner": "hamza-omar"
   }
 }

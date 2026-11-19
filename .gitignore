@@ -30,3 +30,4 @@ blob-report/
 apps/mobile/android/
 apps/mobile/ios/
 apps/mobile/.expo/
+*.apk
